@@ -65,12 +65,13 @@ with open(INPATH, "r") as f:
         for word in wordlist:
             if word in vocab_lookup:
                 index = vocab_lookup[word]
-                counts[index] += 1
+                if index < len(counts):
+                    counts[index] += 1
 
         # Find matching keywords for each aspect
         aspectlist = []
-        for aspect in util.ASPECT_KEYWORDS:
-            keywords = util.ASPECT_KEYWORDS[aspect]
+        for aspect in util.aspect_keywords:
+            keywords = util.aspect_keywords[aspect]
             matches = [kw for kw in keywords if re.search(kw, tweet, re.IGNORECASE)]
             if matches:
                 aspectlist.append(aspect)
@@ -101,8 +102,8 @@ print(f"Kept {saved_count} rows, discarded {discarded_count} rows")
 
 # Add aspect keywords to vocabulary list
 vocab_list = []
-for aspect in util.ASPECT_KEYWORDS:
-    for keyword in util.ASPECT_KEYWORDS[aspect]:
+for aspect in util.aspect_keywords:
+    for keyword in util.aspect_keywords[aspect]:
         vocab_list.append(keyword)
 
 # Add other frequent words to vocabulary list
@@ -111,9 +112,9 @@ word_pairs.sort(key=lambda x: x[1], reverse=True)
 for word, count in word_pairs:
     if word not in vocab_list:
         vocab_list.append(word)
-print(f"Most common {len(vocab_list)} words are {vocab_list}")
+#print(f"Most common {len(vocab_list)} words are {vocab_list}")
 
 # Save out the vocabulary
-print(f"Wrote {len(vocab_list)} words to {util.vocab_list_path}.")
+#print(f"Wrote {len(vocab_list)} words to {util.vocab_list_path}.")
 with open(util.vocab_list_path, "wb") as f:
     pk.dump(vocab_list, f)

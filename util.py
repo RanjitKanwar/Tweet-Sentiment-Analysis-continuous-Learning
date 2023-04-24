@@ -1,9 +1,9 @@
 import nltk
-nltk.download('omw-1.4')
+#nltk.download('omw-1.4')
 from nltk.corpus import stopwords
 from collections import Counter
-nltk.download('punkt')
-nltk.download('wordnet')
+#nltk.download('punkt')
+#nltk.download('wordnet')
 from nltk.tokenize import word_tokenize
 from nltk.stem import WordNetLemmatizer
 import numpy as np
@@ -19,7 +19,7 @@ frequencies_path = "frequencies_tweet.pkl"
 labels = ["negative", "neutral", "positive"]
 
 # Keywords for aspects
-ASPECT_KEYWORDS = {
+aspect_keywords = {
     "flight delays": ["delay", "cancel", "divert"],
     "on-time performance": ["on time", "delay", "early", "late"],
     "baggage handling": ["baggage", "luggage", "lost", "damage"],
