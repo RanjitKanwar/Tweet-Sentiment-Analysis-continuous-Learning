@@ -76,6 +76,10 @@ with open(INPATH, "r") as f:
             if matches:
                 aspectlist.append(aspect)
 
+        # If no aspect keywords matched, add an empty list
+        if not aspectlist:
+            aspectlist = ["NA"]
+
         # Which file should it go into?
         r = np.random.rand()
         if r < TEST_P:
@@ -87,7 +91,7 @@ with open(INPATH, "r") as f:
         sentiment = util.labels.index(row[SENTIMENT_COL])
 
         # Write it out
-        writers[destination].writerow([tweet, sentiment, aspectlist])
+        writers[destination].writerow([tweet, row[SENTIMENT_COL], aspectlist])
         saved_count += 1
 
         # Count the words in the list
@@ -101,7 +105,7 @@ print(f"Kept {saved_count} rows, discarded {discarded_count} rows")
 
 
 # Add aspect keywords to vocabulary list
-vocab_list = []
+vocab_list = ["NA"]
 for aspect in util.aspect_keywords:
     for keyword in util.aspect_keywords[aspect]:
         vocab_list.append(keyword)
@@ -112,6 +116,7 @@ word_pairs.sort(key=lambda x: x[1], reverse=True)
 for word, count in word_pairs:
     if word not in vocab_list:
         vocab_list.append(word)
+
 #print(f"Most common {len(vocab_list)} words are {vocab_list}")
 
 # Save out the vocabulary

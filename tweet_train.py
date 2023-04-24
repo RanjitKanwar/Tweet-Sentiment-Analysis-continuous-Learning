@@ -22,6 +22,7 @@ sentiment_counts = [0] * num_labels
 
 # Initialize count matrix
 counts = np.zeros((num_labels, len(vocab_list)))
+
 # Process training data
 with open(util.TRAIN_TWEET_PATH, 'r') as f:
     reader = csv.reader(f)
@@ -30,13 +31,18 @@ with open(util.TRAIN_TWEET_PATH, 'r') as f:
         tweet_words = row[TWEET_COL].strip().split()
         aspects = row[ASPECT_COL].strip().split(';')
 
+        # Skip iteration if there are no aspects or if all aspects are 'NA'
+        if not aspects or all(aspect == 'NA' for aspect in aspects):
+            continue
+
         # Update counts for each aspect
         for aspect in aspects:
-            aspect_counts = np.zeros(len(vocab_list))
-            for word in tweet_words:
-                if word in vocab_list:
-                    aspect_counts[vocab_list.index(word)] += 1
-            counts[sentiment, vocab_list.index(aspect)] += np.sum(aspect_counts)
+            if aspect != 'NA':
+                aspect_counts = np.zeros(len(vocab_list))
+                for word in tweet_words:
+                    if word in vocab_list:
+                        aspect_counts[vocab_list.index(word)] += 1
+                counts[sentiment, vocab_list.index(aspect)] += np.sum(aspect_counts)
 
         # Update counts for all words
         for word in tweet_words:
