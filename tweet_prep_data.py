@@ -1,7 +1,10 @@
 import csv
 import util
+import csv
 import numpy as np
+import pandas as pd
 import re
+import util
 
 # column indices
 SENTIMENT_COL = 1
@@ -21,12 +24,13 @@ INPATH = "Tweets.csv"
 phases = ["train", "test"]
 writers = {}
 for phase in phases:
-    f = open(f"{phase}_tweet.csv", "w", newline="\n")
+    f = open(f"{phase}_tweet.csv", "w", newline="\n", encoding='utf-8')
     writer = csv.writer(f)
+    writer.writerow(["tweet", "sentiment", "aspects"]) # Add column names
     writers[phase] = writer
 
 # Read all the tweets
-with open(INPATH, "r") as f:
+with open(INPATH, "r", encoding='utf-8') as f:
     reader = csv.reader(f)
 
     # Skip header
