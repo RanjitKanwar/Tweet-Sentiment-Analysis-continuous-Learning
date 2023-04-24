@@ -1,13 +1,16 @@
-# 57 lines of code
 import csv
 import util
 import pickle as pk
 import numpy as np
+import re
+
 
 # column indices
 SENTIMENT_COL = 1
 CONFIDENCE_COL = 2
 TWEET_COL = 10
+
+
 
 # Probabilities
 TEST_P = 0.1
@@ -43,21 +46,34 @@ with open(INPATH, "r") as f:
     discarded_count = 0
     saved_count = 0
     for row in reader:
+        # Get the sentiment, confidence, and tweet text from the row
+        sentiment = row[SENTIMENT_COL]
+        confidence = float(row[CONFIDENCE_COL])
+        tweet = row[TWEET_COL]
 
-        # Make sure the row has at least 11 columns
-        if len(row) < 11:
-            continue
-
-        # Skip rows with low confidence
-        if float(row[CONFIDENCE_COL]) < REQUIRED_CONFIDENCE:
+        # Skip the tweet if the confidence is below the threshold
+        if confidence < REQUIRED_CONFIDENCE:
             discarded_count += 1
             continue
 
-        # Get tweet
-        tweet = row[TWEET_COL]
+        # Tokenize the tweet and identify mentioned aspects
+        wordlist, mentioned_aspects = util.str_to_list(tweet)
 
-        # Convert to a list of lowercase words
-        wordlist = util.str_to_list(tweet)
+        # Get the counts for the wordlist
+        vocab_lookup = util.load_vocab()
+        counts = np.zeros(len(vocab_lookup))
+        for word in wordlist:
+            if word in vocab_lookup:
+                index = vocab_lookup[word]
+                counts[index] += 1
+
+        # Find matching keywords for each aspect
+        aspectlist = []
+        for aspect in util.ASPECT_KEYWORDS:
+            keywords = util.ASPECT_KEYWORDS[aspect]
+            matches = [kw for kw in keywords if re.search(kw, tweet, re.IGNORECASE)]
+            if matches:
+                aspectlist.append(aspect)
 
         # Which file should it go into?
         r = np.random.rand()
@@ -70,7 +86,7 @@ with open(INPATH, "r") as f:
         sentiment = util.labels.index(row[SENTIMENT_COL])
 
         # Write it out
-        writers[destination].writerow([tweet, sentiment])
+        writers[destination].writerow([tweet, sentiment, aspectlist])
         saved_count += 1
 
         # Count the words in the list
@@ -82,11 +98,20 @@ with open(INPATH, "r") as f:
 
 print(f"Kept {saved_count} rows, discarded {discarded_count} rows")
 
-# Make a list of words in descending order of frequency
+
+# Add aspect keywords to vocabulary list
+vocab_list = []
+for aspect in util.ASPECT_KEYWORDS:
+    for keyword in util.ASPECT_KEYWORDS[aspect]:
+        vocab_list.append(keyword)
+
+# Add other frequent words to vocabulary list
 word_pairs = list(count_dict.items())
 word_pairs.sort(key=lambda x: x[1], reverse=True)
-vocab_list = [word_pairs[i][0] for i in range(VECLEN)]
-print(f"Most common 32 words are {vocab_list[:32]}")
+for word, count in word_pairs:
+    if word not in vocab_list:
+        vocab_list.append(word)
+print(f"Most common {len(vocab_list)} words are {vocab_list}")
 
 # Save out the vocabulary
 print(f"Wrote {len(vocab_list)} words to {util.vocab_list_path}.")

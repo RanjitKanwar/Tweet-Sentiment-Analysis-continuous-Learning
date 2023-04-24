@@ -1,148 +1,77 @@
 import csv
-import util
 import pickle as pk
 import numpy as np
+import util
 
-# What is the probability for unseen words?
-DEFAULT_P = 0.5
+# column indices
+TWEET_COL = 0
+SENTIMENT_COL = 1
+ASPECT_COL = 2
 
-# Read the word list
-## Your code here
-with open("vocablist_tweet.pkl", "rb") as f:
+# Load vocabulary
+with open(util.vocab_list_path, "rb") as f:
     vocab_list = pk.load(f)
+vocab_lookup = {w:i for i, w in enumerate(vocab_list)}
 
-# Note how many words are in the vocabulary
-veclen = len(vocab_list)  ## Your code here
+# Get number of labels
+labels = ["negative", "neutral", "positive"]
+num_labels = len(labels)
 
-# Make a dictionary (word->index) for faster lookup
-# Convert dictionary for faster lookup
-vocab_lookup = {}
-for i, word in enumerate(vocab_list):
-    vocab_lookup[word] = i
+# Initialize sentiment counts
+sentiment_counts = [0] * num_labels
 
-# Create an np array for counting each word
-# sums[3][1] will be the total number of vocab_list[3]
-# in sentiment 1 tweets
-# 3 - neutral(1), positive(2), negative(0)
-sums = np.zeros((veclen, 3), dtype=np.double)
-
-# Create an array for counting tweets by sentiment
-# tweet_counts[0] = total number of negative tweets
-# tweet_counts[1] = total number of neutral tweets
-# tweet_counts[2] = total number of positve tweets
-tweet_counts = np.zeros(3, dtype=int)
-
-# Step through the train.csv file
-with open("train_tweet.csv", "r") as f:
+# Initialize count matrix
+counts = np.zeros((num_labels, len(vocab_list)))
+# Process training data
+with open(util.TRAIN_TWEET_PATH, 'r') as f:
     reader = csv.reader(f)
-
-    # Keep track of how many tweets we skipped
-    # because they had no words in our vocabulary
-    skipped_tweet_count = 0
-
     for row in reader:
+        sentiment = labels.index(row[SENTIMENT_COL])
+        tweet_words = row[TWEET_COL].strip().split()
+        aspects = row[ASPECT_COL].strip().split(';')
 
-        # Skip rows that don't have two entries
-        if len(row) != 2:
-            continue
+        # Update counts for each aspect
+        for aspect in aspects:
+            aspect_counts = np.zeros(len(vocab_list))
+            for word in tweet_words:
+                if word in vocab_list:
+                    aspect_counts[vocab_list.index(word)] += 1
+            counts[sentiment, vocab_list.index(aspect)] += np.sum(aspect_counts)
 
-        # Get the tweet and its associated sentiment
-        tweet = row[0]
-        sentiment = int(row[1])
+        # Update counts for all words
+        for word in tweet_words:
+            if word in vocab_list:
+                counts[sentiment, vocab_list.index(word)] += 1
 
-        # Convert the tweet to a list of words
-        wordlist = util.str_to_list(tweet)  ## Your code here (use util.py)
+        # Update sentiment counts
+        sentiment_counts[sentiment] += 1
 
-        # Convert the list of words into a word count vector
-        word_counts = util.counts_for_wordlist(
-            wordlist, vocab_lookup
-        )  ## Your code here (use util.py)
+# Calculate log-frequencies for each aspect and sentiment
+aspect_freqs = np.zeros((len(labels), len(vocab_list)))
+for aspect in range(len(vocab_list)):
+    total = np.sum(counts[:, aspect])
+    for sentiment in range(len(labels)):
+        aspect_freqs[sentiment][aspect] = np.log((counts[sentiment][aspect] + 1) / (total + len(vocab_list)))
 
-        # Skip tweets with no common words
-        if word_counts is None:
-            skipped_tweet_count += 1
-            continue
+sentiment_freqs = np.zeros((len(labels)))
+for sentiment in range(len(labels)):
+    total = np.sum(counts[sentiment])
+    sentiment_freqs[sentiment] = np.log(total / np.sum(counts[:, sentiment]))
 
-        # Add the word counts to the sums for the appropriate sentiment
-        # (You don't need a loop here)
-        ## Your code here
-        sums[:, sentiment] = sums[:, sentiment] + word_counts
+# Save out frequencies
+with open(util.freq_path, "wb") as f:
+    pk.dump((aspect_freqs, sentiment_freqs), f)
 
-        # Increment the count of the sentiment
-        ## Your code here
-        tweet_counts[sentiment] += 1
+# Find the most positive and negative aspects
+diff = aspect_freqs[util.labels.index("positive")] - aspect_freqs[util.labels.index("negative")]
+indices = diff.argsort()
 
-print(f"Skipped {skipped_tweet_count} tweets: had no words from vocabulary")
+print("Most positive aspects:")
+for i in range(1, 11):
+    index = indices[-i]
+    print(f"{vocab_list[index]} ({np.exp(aspect_freqs[util.labels.index('positive')][index])})")
 
-# Zeros are draconian
-# Replace any zeros in sums with DEFAULT_P
-## Your code here
-sums[sums == 0] = DEFAULT_P
-
-# From sums, get the total number of counted
-# words for each sentiment
-totals = sums.sum(axis=0)  ## Your code here
-assert totals.shape == (3,), "totals is an incorrect shape"
-
-# Compute the word frequencies
-word_frequencies = sums / totals  ## Your code here
-assert np.all(
-    np.isclose(word_frequencies.sum(axis=0), np.array([1.0, 1.0, 1.0]))
-), "Word frequencies for a sentiment do not sum to one"
-
-# Take the log of the word frequencies
-log_word_frequencies = np.log(word_frequencies)  ## Your code here
-
-# Compute the priors
-sentiment_frequencies = totals / sum(totals)  ## Your code here
-
-assert sentiment_frequencies.shape == (
-    3,
-), "sentiment_frequencies is an incorrect shape"
-assert np.isclose(
-    sentiment_frequencies.sum(), 1.0
-), "sentiment frequencies do not sum to one"
-
-# Print out the priors
-print("*** Tweets by sentiment ***")
-for i in range(3):
-    print(f"\t{i} ({util.labels[i]}): {sentiment_frequencies[i] * 100.0:.1f}%")
-
-# Compute the log of the priors
-log_sentiment_frequencies = np.log(sentiment_frequencies)  ## Your code here
-
-assert log_word_frequencies.shape == (
-    2000,
-    3,
-), "log_word_frequencies is an incorrect shape"
-assert log_sentiment_frequencies.shape == (
-    3,
-), "log_sentiment_frequencies is an incorrect shape"
-
-# Write out the logs of the word and sentiment frequencies in a single pickle file
-## Your code here
-pickle_path = "frequencies_tweet.pkl"
-with open(pickle_path, "wb") as pfile:
-    pk.dump((log_word_frequencies, log_sentiment_frequencies), pfile)
-
-# Just for fun, print out the most positive and most negative words
-# by taking the difference between a wols
-# rd's frequency in sentiment 0 tweets
-# and its frequency in sentiment 2 tweets
-happy_angry = word_frequencies[:, 0] - word_frequencies[:, 2]
-happiest_to_angriest = np.argsort(happy_angry)
-
-## Your code here
-print("Positive words:")
-print("\t", end="")
-for i in happiest_to_angriest[:10]:
-    print(vocab_list[i], end=" ")
-
-print()
-## Your code here
-print("Negative words:")
-print("\t", end="")
-for i in happiest_to_angriest[:-11:-1]:
-    print(vocab_list[i], end=" ")
-
-print()
+print("Most negative aspects:")
+for i in range(1, 11):
+    index = indices[i - 1]
+    print(f"{vocab_list[index]} ({np.exp(aspect_freqs[util.labels.index('negative')][index])})")

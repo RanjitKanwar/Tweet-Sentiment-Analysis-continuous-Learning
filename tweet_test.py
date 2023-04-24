@@ -7,39 +7,32 @@ import matplotlib.pyplot as plt
 
 import util
 
-# Read in the word list
-## Your code here
-with open("vocablist_tweet.pkl", "rb") as f:
+
+# Read in the vocabulary
+with open(util.vocab_list_path, "rb") as f:
     vocab_list = pk.load(f)
 
 # Convert dictionary (str -> index) for faster lookup
-vocab_lookup = {}  ## Your code here
+vocab_lookup = {}
 for i, word in enumerate(vocab_list):
     vocab_lookup[word] = i
 
-## Your code here
-
 # Read in the log of the word and sentiment frequencies
-with open("frequencies_tweet.pkl", "rb") as f:
+with open(util.frequencies_path, "rb") as f:
     log_word_frequencies, log_sentiment_frequencies = pk.load(f)
 
-log_word_frequencies = (
-    log_word_frequencies.T
-)  ## Your code here (Transpose what you read)
+# Transpose the word frequencies to match the shape of the vectors
+log_word_frequencies = log_word_frequencies.T
 
-assert log_word_frequencies.shape == (3, 2000), "log_word_frequecies is the wrong shape"
-assert log_sentiment_frequencies.shape == (
-    3,
-), "log_sentiment_frequencies is the wrong shape"
+# Check that the shapes of the arrays match the expected values
+assert log_word_frequencies.shape == (3, util.VECLEN), "log_word_frequencies is the wrong shape"
+assert log_sentiment_frequencies.shape == (3,), "log_sentiment_frequencies is the wrong shape"
 
-# We should compare ourselves to some baseline
-most_common_sentiment = log_sentiment_frequencies.argmax()  ## Your code here
-freq_of_most_common = np.exp(
-    log_sentiment_frequencies[most_common_sentiment]
-)  ## Your code here
-print(
-    f'Would get {freq_of_most_common * 100.0:.1f}% accuracy by guessing "{most_common_sentiment}" every time.'
-)
+baseline_accuracy = freq_of_most_common * 100.0
+print(f'The most common sentiment is "{most_common_sentiment}".')
+print(f'The baseline accuracy is {baseline_accuracy:.1f}%.')
+print('This means that our sentiment analysis model needs to achieve an accuracy')
+print('higher than the baseline to be considered useful.')
 
 # Gather ground truth and predictions
 gt_sentiments = []
@@ -59,52 +52,35 @@ with open("test_tweet.csv", "r") as f:
 
         # Get the tweet and its ground truth sentiment
         tweet = row[0]
-        sentiment = int(row[1])  ## Your code (it should be an int)
-
-        # Convert the tweet to a wordlist
-        wordlist = util.str_to_list(tweet)  ## Your code here (use util.py)
-
-        # Conver the wordlist to a word_counts vector
-        word_counts = util.counts_for_wordlist(
-            wordlist, vocab_lookup
-        )  ## Your code here (use util.py)
-
-        # Did this tweet have no common words?
-        if word_counts is None:
-            skipped_tweet_count += 1
-            continue
-
-        # Compute the log likelihoods for all three sentiments
-        log_likelihoods = (
-            log_word_frequencies @ word_counts
-        )  ## Your code here (refer to the lecture) (It is a matrix times a vector)
-        assert log_likelihoods.shape == (3,), "log_likelihoods is the wrong shape"
-
-        # Add the log priors to the log_likelihoods to get the log_posteriors (unnormalized)
-        log_posteriors = log_likelihoods + log_sentiment_frequencies  ## Your code here
-
-        # Get a prediction (0, 1 or 2)
-        prediction = np.argmax(log_posteriors)  ## Your code here
-
-        # Move posterior out of "log space"
-        unnormalized_posteriors = np.exp(log_posteriors - np.max(log_posteriors))
-
-        # They must add up to 1, so normalize them
-        normalized_posteriors = unnormalized_posteriors / np.sum(
-            unnormalized_posteriors
-        )
-
-        # Get your confidence in the prediction
-        confidence = normalized_posteriors[prediction]  ## Your code here
-        assert (
-            confidence > 0.33
-        ), "Confidence lower than 33 percent, there are only three sentiments"
-        assert confidence <= 1.0, "Confidence is more than 100 percent."
-
-        # Store the result in lists
+        sentiment = int(row[1])
         gt_sentiments.append(sentiment)
-        predicted_sentiments.append(prediction)
-        prediction_confidences.append(confidence)
+
+        # Tokenize the tweet and identify mentioned aspects
+        wordlist, mentioned_aspects = util.str_to_list(tweet)
+
+        # Convert the tweet to a vector using the vocabulary and lookup dictionary
+        counts = np.zeros(util.VECLEN)
+        for word in wordlist:
+            if word in vocab_lookup:
+                index = vocab_lookup[word]
+                counts[index] += 1
+
+        # Normalize the vector
+        total_count = counts.sum()
+        if total_count > 0:
+            counts /= total_count
+
+        # Calculate the log-probability of the tweet belonging to each sentiment class
+        log_probs = log_word_frequencies @ counts + log_sentiment_frequencies
+
+        # Use the class with the highest log-probability as the predicted sentiment
+        predicted_sentiment = np.argmax(log_probs)
+        predicted_sentiments.append(predicted_sentiment)
+
+        # Calculate the confidence in the prediction
+        prediction_confidence = np.exp(log_probs[predicted_sentiment])
+        prediction_confidences.append(prediction_confidence)
+
 
 print(f"Skipped {skipped_tweet_count} rows for having none of the common words")
 
